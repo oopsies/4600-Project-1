@@ -38,7 +38,7 @@ int produce_information_in_block(int num){
 	return rand() % 10 + 1;  
 }
 
-void *produce(){
+void *produce(void *args){
 	int b;
 	/*
 		while (1)
@@ -61,7 +61,7 @@ void *produce(){
 		sem_post(&mutex_list1);
 }
 
-void transfer(){
+void *transfer(void *args){
 	while(1){
 
 
@@ -70,7 +70,7 @@ void transfer(){
 	}
 }
 
-void consume(){
+void *consume(void *args){
 	while(1){
 		
 
@@ -92,9 +92,9 @@ int main() {
 	sem_init(&mutex_list1, 0, 1);
 	sem_init(&counting, 0, 5);
 
-	pthread_create(&threads[0], NULL, produce);
-	pthread_create(&threads[1], NULL, transfer);
-	pthread_create(&threads[2], NULL, consume);
+	pthread_create(&threads[0], NULL, &produce, NULL);
+	pthread_create(&threads[1], NULL, &transfer, NULL);
+	pthread_create(&threads[2], NULL, &consume, NULL);
 
 	sem_destroy(&mutex_list1);
 	sem_destroy(&counting);
