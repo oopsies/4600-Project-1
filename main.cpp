@@ -11,9 +11,9 @@
 
 using namespace std;
 
-sem_t mutex_list1;
-sem_t counting;
-vector<int>list1, freelist;
+sem_t mutex_list1, mutex_list2, mutex_freelist;
+sem_t counting, list1_full_count, list2_full_count, list1_empty_count, list2_empty_count;
+vector<int>list1, list2, freelist;
 
 
 void link(int num, vector<int> &list) {
@@ -36,6 +36,11 @@ int produce_information_in_block(int num){
 
 	// num should equal 0 if it's a free memory
 	return rand() % 10 + 1;  
+}
+
+void use_block_x_to_produce_into_in_y(int* x, int* y){
+	*y = *x;
+	return;
 }
 
 void *produce(void *args){
@@ -62,15 +67,36 @@ void *produce(void *args){
 }
 
 void *transfer(void *args){
+	int x, y;
+
 	while(1){
 
+	// Remove one from list1's full count, unlink, then add one to empty count.
+	sem_wait(&list1_full_count);
+	sem_wait(&mutex_list1);
+	x = unlink(list1);
+	sem_post(&mutex_list1);
+	sem_post(&list1_empty_count);
 
+	sem_wait(&counting);
+	y = unlink(freelist);
 
+	use_block_x_to_produce_into_in_y(&x, &y);
 
+	// Link used block to freelist, add one to freelist count.
+	link(x, freelist);
+	sem_post(&counting);
+
+	// Remove one from list2's empty count, link y, then add one to its full count.
+	sem_wait(&list2_empty_count);
+	sem_wait(&mutex_list2);
+	link(y, list2);
+	sem_post(&mutex_list2);
+	sem_post(&list2_full_count);
 	}
 }
 
-void *consume(void *args){
+void* consume(void* args){
 	while(1){
 		
 
@@ -90,14 +116,26 @@ int main() {
 	freelist.push_back(0);
 
 	sem_init(&mutex_list1, 0, 1);
+	sem_init(&mutex_list2, 0, 1);
+	sem_init(&mutex_freelist, 0, 1);
 	sem_init(&counting, 0, 5);
+	sem_init(&list1_empty_count, 0, 5);
+	sem_init(&list2_empty_count, 0, 5);
+	sem_init(&list1_full_count, 0, 0);
+	sem_init(&list2_full_count, 0, 0);
 
 	pthread_create(&threads[0], NULL, &produce, NULL);
 	pthread_create(&threads[1], NULL, &transfer, NULL);
 	pthread_create(&threads[2], NULL, &consume, NULL);
 
 	sem_destroy(&mutex_list1);
+	sem_destroy(&mutex_list2);
+	sem_destroy(&mutex_freelist);
 	sem_destroy(&counting);
+	sem_destroy(&list1_empty_count);
+	sem_destroy(&list2_empty_count);
+	sem_destroy(&list1_full_count);
+	sem_destroy(&list2_full_count);
 
 	pthread_exit(NULL);
 
