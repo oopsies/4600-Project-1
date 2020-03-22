@@ -38,6 +38,10 @@ int produce_information_in_block(int num){
 	return rand() % 10 + 1;  
 }
 
+int consume_information_in_block(int num){
+	return 0;
+}
+
 void use_block_x_to_produce_into_in_y(int* x, int* y){
 	*y = *x;
 	return;
@@ -98,7 +102,22 @@ void *transfer(void *args){
 
 void* consume(void* args){
 	while(1){
-		
+		int c;		
+
+			//wait until there is data to consume in list 2, then consume it
+			sem_wait(&list2_full_count);
+            sem_wait(&mutex_list2);
+            c = unlink(list2);
+            sem_post(&mutex_list2);
+			sem_post(&list2_empty_count);
+
+
+            c = consume_information_in_block(c);
+            
+		//add it back to freelist
+        sem_wait(&counting);
+        link(c, freelist);
+        sem_post(&counting);
 
 
 	}
