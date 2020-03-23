@@ -61,6 +61,7 @@ void *produce(void *args){
 		link(b, list1);
 		sem_post(&mutex_list1);
 		sem_post(&list1_full_count);
+	}
 }
 
 void *transfer(void *args){
