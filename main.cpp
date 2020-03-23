@@ -49,25 +49,21 @@ void use_block_x_to_produce_into_in_y(int* x, int* y){
 
 void *produce(void *args){
 	int b;
-	/*
-		while (1)
-		Temporarily removed my while loop to test.
-		If it's included, I get a seg fault.
-	*/
+	
+	while(1){
+		sem_wait(&counting);
+		sem_wait(&mutex_freelist);
+		b = unlink(freelist);	// lock for accessing memory
+		b = produce_information_in_block(b);	// realized produce_information_in_block() probably means give it a number
+		sem_post(&mutex_freelist);
+		sem_post(&counting);
 		
-		
-			sem_wait(&counting);
-			b = unlink(freelist);	// lock for accessing memory				
-			sem_post(&counting);
-			
-		
-			b = produce_information_in_block(b);
-			// realized produce_information_in_block() probably means give it a number
-			
-		
+		sem_wait(&list1_empty_count);
 		sem_wait(&mutex_list1);
 		link(b, list1);
 		sem_post(&mutex_list1);
+		sem_post(&list1_full_count);
+	}
 }
 
 void *transfer(void *args){
@@ -128,11 +124,11 @@ int main() {
 
 	pthread_t threads[3];
 	
-	list1.push_back(2);
-	list1.push_back(4);
+	for (int i = 2; i < 12 ; i+=2)
+		list1.push_back(i); // list1 = {2, 4, 6, 8, 10}
 	
-	freelist.push_back(0);
-	freelist.push_back(0);
+	for (int i = 0; i < 5; i++)
+		freelist.push_back(0); // freelist = {0, 0, 0, 0, 0}
 
 	sem_init(&mutex_list1, 0, 1);
 	sem_init(&mutex_list2, 0, 1);
