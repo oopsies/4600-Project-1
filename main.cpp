@@ -52,8 +52,10 @@ void *produce(void *args){
 	
 	while(1){
 		sem_wait(&counting);
+		sem_wait(&mutex_freelist);
 		b = unlink(freelist);	// lock for accessing memory
 		b = produce_information_in_block(b);	// realized produce_information_in_block() probably means give it a number
+		sem_post(&mutex_freelist);
 		sem_post(&counting);
 		
 		sem_wait(&list1_empty_count);
