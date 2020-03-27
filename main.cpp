@@ -11,23 +11,27 @@
 
 using namespace std;
 
-sem_t mutex_list1, mutex_list2, mutex_freelist;
+sem_t mutex_list1, mutex_list2, mutex_freelist_produce, mutex_freelist_transfer, mutex;
 sem_t counting, list1_full_count, list2_full_count, list1_empty_count, list2_empty_count;
 vector<int>list1, list2, freelist;
 
 
 void link(int num, vector<int> &list) {
 	
+	sem_wait(&mutex);
 	list.push_back(num); // add b to end of list
+	sem_post(&mutex);
 
 }
 
 int unlink(vector<int> &list){
-
-	int num = list[list.size()]; // unlink the last element in list
-	list.pop_back(); // remove from list
 	
-	return num; 
+	sem_wait(&mutex);
+	int num = list[list.size() - 1]; // unlink the last element in list
+	list.pop_back();// remove from list
+	sem_post(&mutex);
+	
+	return num;
 		
 }
 int produce_information_in_block(int num){
@@ -47,27 +51,26 @@ void use_block_x_to_produce_into_in_y(int* x, int* y){
 	return;
 }
 
+
 void *produce(void *args){
 	int b;
-	/*
-		while (1)
-		Temporarily removed my while loop to test.
-		If it's included, I get a seg fault.
-	*/
+	
+	while(1){
+
+		//cout << "PRODUCE\n";
+
+		//if (freelist.size() == 0)
+        //cout << "\n\nERROR: FREELIST SIZE IS 0\n\n";
+		sem_wait(&mutex_freelist_produce);
+		b = unlink(freelist);	// lock for accessing memory
+
+
+		b = produce_information_in_block(b);	// realized produce_information_in_block() probably means give it a number
 		
 		
-			sem_wait(&counting);
-			b = unlink(freelist);	// lock for accessing memory				
-			sem_post(&counting);
-			
-		
-			b = produce_information_in_block(b);
-			// realized produce_information_in_block() probably means give it a number
-			
-		
-		sem_wait(&mutex_list1);
 		link(b, list1);
 		sem_post(&mutex_list1);
+	}
 }
 
 void *transfer(void *args){
@@ -75,49 +78,49 @@ void *transfer(void *args){
 
 	while(1){
 
+	//cout << "TRANSFER\n";
+
+
+
 	// Remove one from list1's full count, unlink, then add one to empty count.
-	sem_wait(&list1_full_count);
 	sem_wait(&mutex_list1);
 	x = unlink(list1);
-	sem_post(&mutex_list1);
-	sem_post(&list1_empty_count);
 
-	sem_wait(&counting);
+	//if (freelist.size() == 0)
+    //    cout << "\n\nERROR: FREELIST SIZE IS 0\n\n";
+	sem_wait(&mutex_freelist_transfer);
 	y = unlink(freelist);
+
 
 	use_block_x_to_produce_into_in_y(&x, &y);
 
 	// Link used block to freelist, add one to freelist count.
 	link(x, freelist);
-	sem_post(&counting);
+	sem_post(&mutex_freelist_transfer);
 
 	// Remove one from list2's empty count, link y, then add one to its full count.
-	sem_wait(&list2_empty_count);
-	sem_wait(&mutex_list2);
 	link(y, list2);
 	sem_post(&mutex_list2);
-	sem_post(&list2_full_count);
 	}
 }
 
 void* consume(void* args){
-	while(1){
-		int c;		
-
-			//wait until there is data to consume in list 2, then consume it
-			sem_wait(&list2_full_count);
-            sem_wait(&mutex_list2);
-            c = unlink(list2);
-            sem_post(&mutex_list2);
-			sem_post(&list2_empty_count);
+	int c;
 
 
-            c = consume_information_in_block(c);
+	while(1){		
+	
+		//cout << "CONSUME\n";
+
+		//wait until there is data to consume in list 2, then consume it
+        sem_wait(&mutex_list2);
+        c = unlink(list2);
+
+        c = consume_information_in_block(c);
             
 		//add it back to freelist
-        sem_wait(&counting);
         link(c, freelist);
-        sem_post(&counting);
+        sem_post(&mutex_freelist_produce);
 
 
 	}
@@ -127,21 +130,20 @@ void* consume(void* args){
 int main() {
 
 	pthread_t threads[3];
-	
-	list1.push_back(2);
-	list1.push_back(4);
-	
-	freelist.push_back(0);
-	freelist.push_back(0);
+		
+	for (int i = 0; i < 12; i++)
+		freelist.push_back(0); // freelist = {0, 0, 0, 0, 0}
 
-	sem_init(&mutex_list1, 0, 1);
-	sem_init(&mutex_list2, 0, 1);
-	sem_init(&mutex_freelist, 0, 1);
-	sem_init(&counting, 0, 5);
-	sem_init(&list1_empty_count, 0, 5);
-	sem_init(&list2_empty_count, 0, 5);
-	sem_init(&list1_full_count, 0, 0);
-	sem_init(&list2_full_count, 0, 0);
+	sem_init(&mutex_list1, 0, 0);
+	sem_init(&mutex_list2, 0, 0);
+	sem_init(&mutex_freelist_produce, 0, 5);
+	sem_init(&mutex_freelist_transfer, 0, 5);
+	sem_init(&mutex, 0, 1);
+	//sem_init(&counting, 0, 5);
+	//sem_init(&list1_empty_count, 0, 5);
+	//sem_init(&list2_empty_count, 0, 5);
+	//sem_init(&list1_full_count, 0, 0);
+	//sem_init(&list2_full_count, 0, 0);
 
 	pthread_create(&threads[0], NULL, &produce, NULL);
 	pthread_create(&threads[1], NULL, &transfer, NULL);
@@ -149,12 +151,14 @@ int main() {
 
 	sem_destroy(&mutex_list1);
 	sem_destroy(&mutex_list2);
-	sem_destroy(&mutex_freelist);
-	sem_destroy(&counting);
+	sem_destroy(&mutex_freelist_produce);
+    sem_destroy(&mutex_freelist_transfer);
+	sem_destroy(&mutex);
+	/*sem_destroy(&counting);
 	sem_destroy(&list1_empty_count);
 	sem_destroy(&list2_empty_count);
 	sem_destroy(&list1_full_count);
-	sem_destroy(&list2_full_count);
+	sem_destroy(&list2_full_count);*/
 
 	pthread_exit(NULL);
 
